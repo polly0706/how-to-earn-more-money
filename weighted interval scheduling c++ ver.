@@ -1,0 +1,132 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <functional> // Added for std::function
+
+using namespace std;
+
+struct Job {
+    int id;
+    int wage;
+    int start_time;
+    int end_time;
+};
+
+// Check if job j can be done after job i (considering travel time)
+bool canScheduleAfter(const Job& i, const Job& j, float travel_time) {
+    return i.end_time + travel_time <= j.start_time;
+}
+
+// Function to find maximum profit using DFS
+int findMaxProfit(vector<Job>& jobs, vector<vector<bool>>& compatibility, int current_job, vector<bool>& visited) {
+    // Base case: include the current job in our solution
+    int profit = jobs[current_job].wage;
+    visited[current_job] = true;
+    
+    // Try to schedule another job after the current one
+    int max_additional_profit = 0;
+    for (int next_job = 0; next_job < jobs.size(); next_job++) {
+        if (!visited[next_job] && compatibility[current_job][next_job]) {
+            int additional_profit = findMaxProfit(jobs, compatibility, next_job, visited);
+            max_additional_profit = max(max_additional_profit, additional_profit);
+        }
+    }
+    
+    // Backtrack
+    visited[current_job] = false;
+    
+    return profit + max_additional_profit;
+}
+
+int main() {
+    // Initialize jobs with their properties
+    vector<Job> jobs = {
+        {1, 5, 1, 3},  // Job 1: wage 5, time 1-3
+        {2, 6, 2, 5},  // Job 2: wage 6, time 2-5
+        {3, 5, 4, 7},  // Job 3: wage 5, time 4-7
+        {4, 4, 6, 7},  // Job 4: wage 4, time 6-7
+        {5, 11, 5, 8}  // Job 5: wage 11, time 5-8
+    };
+    
+    int n = jobs.size();
+    float travel_time = 0.5;  // Travel time between any two locations is 0.5 hours
+    
+    // Build compatibility matrix
+    vector<vector<bool>> compatibility(n, vector<bool>(n, false));
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (i != j && canScheduleAfter(jobs[i], jobs[j], travel_time)) {
+                compatibility[i][j] = true;
+            }
+        }
+    }
+    
+    // Try starting with each job to find maximum profit
+    int max_profit = 0;
+    vector<int> best_starting_job;
+    
+    for (int start_job = 0; start_job < n; start_job++) {
+        vector<bool> visited(n, false);
+        int profit = findMaxProfit(jobs, compatibility, start_job, visited);
+        
+        if (profit > max_profit) {
+            max_profit = profit;
+            best_starting_job.clear();
+            best_starting_job.push_back(start_job);
+        } else if (profit == max_profit) {
+            best_starting_job.push_back(start_job);
+        }
+    }
+    
+    // Output results
+    cout << "最大收益: " << max_profit << endl;
+    cout << "最佳起始工作: ";
+    for (int job : best_starting_job) {
+        cout << jobs[job].id << " ";
+    }
+    cout << endl;
+    
+    // Find optimal job sequences
+    cout << "最佳工作排序可能性:" << endl;
+    
+    // Define findOptimalPaths function before using it
+    void findOptimalPaths(const vector<Job>& jobs, const vector<vector<bool>>& compatibility, 
+                         int current_job, vector<int>& path, int current_profit, int max_profit);
+    
+    // Function to find and print all optimal paths
+    function<void(int, vector<int>&, int)> printOptimalPaths = 
+    [&](int current_job, vector<int>& path, int current_profit) {
+        path.push_back(jobs[current_job].id);
+        
+        // Check if we've reached the maximum profit
+        bool foundNext = false;
+        for (int next_job = 0; next_job < n; next_job++) {
+            if (find(path.begin(), path.end(), jobs[next_job].id) == path.end() && 
+                compatibility[current_job][next_job]) {
+                foundNext = true;
+                printOptimalPaths(next_job, path, current_profit + jobs[next_job].wage);
+            }
+        }
+        
+        // If this is a leaf node (no more jobs can be added) and we've reached max profit
+        if (!foundNext && current_profit == max_profit) {
+            for (size_t i = 0; i < path.size(); i++) {
+                cout << path[i];
+                if (i < path.size() - 1) {
+                    cout << " -> ";
+                }
+            }
+            cout << " (總收益: " << current_profit << ")" << endl;
+        }
+        
+        path.pop_back();  // Backtrack
+    };
+    
+    // Find all optimal paths starting from each potential starting job
+    for (int start_job : best_starting_job) {
+        vector<int> path;
+        printOptimalPaths(start_job, path, jobs[start_job].wage);
+    }
+    
+    return 0;
+}
